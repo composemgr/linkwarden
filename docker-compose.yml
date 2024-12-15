@@ -1,0 +1,52 @@
+name: linkwarden
+services:
+  db:
+    image: postgres:17
+    container_name: linkwarden-db
+    hostname: linkwarden-db
+    restart: always
+    environment:
+      - POSTGRES_DB=linkwarden
+      - POSTGRES_USER=linkwardenuser
+      - POSTGRES_PASSWORD=linkwardenpass
+    volumes:
+      - /var/lib/srv/$USER/docker/linkwarden/linkwarden/latest/rootfs/data/db/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        ['CMD', 'pg_isready', '-q', '-d', 'linkwarden', '-U', 'linkwardenuser']
+      timeout: 45s
+      interval: 10s
+      retries: 10
+    networks:
+      - linkwarden
+
+  server:
+    image: ghcr.io/linkwarden/linkwarden:latest
+    container_name: Linkwarden-server
+    hostname: linkwarden
+    restart: always
+    environment:
+      - DATABASE_URL=postgres://linkwardenuser:linkwardenpass@linkwarden-db:5432/linkwarden
+      - NEXTAUTH_SECRET=${APP_JWT_TOKEN:-1dfa340bbed0542e3cc6aa436b43b57b52fcff1027ee0a2df6a2631dfa93b558}
+      - NEXTAUTH_URL=http://localhost:3000/api/v1/auth
+      - NEXT_PUBLIC_DISABLE_REGISTRATION=false
+    ports:
+      - 172.17.0.1:59051:3000
+    volumes:
+      - /var/lib/srv/$USER/docker/linkwarden/linkwarden/latest/rootfs/data/linkwarden:/data/data
+    healthcheck:
+      test: timeout 10s bash -c ':> /dev/tcp/127.0.0.1/3000' || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - linkwarden
+
+networks:
+  linkwarden:
+    name: linkwarden
+    external: false
