@@ -1,37 +1,26 @@
-name: linkwarden
-services:
-  db:
-    image: postgres:17
-    container_name: linkwarden-db
-    hostname: linkwarden-db
-    restart: always
-    pull_policy: always
-    environment:
-      - POSTGRES_DB=linkwarden
-      - POSTGRES_USER=linkwardenuser
-      - POSTGRES_PASSWORD=linkwardenpass
-    volumes:
-      - /var/lib/srv/$USER/docker/linkwarden/linkwarden/latest/rootfs/data/db/postgres:/var/lib/postgresql/data
-    healthcheck:
-      test:
-        ['CMD', 'pg_isready', '-q', '-d', 'linkwarden', '-U', 'linkwardenuser']
-      timeout: 45s
-      interval: 10s
-      retries: 10
-    networks:
-      - linkwarden
+# nginx proxy address - http://172.17.0.1:59051
 
-  server:
+name: linkwarden
+x-logging: &default-logging
+  options:
+    max-size: '5m'
+    max-file: '1'
+  driver: json-file
+
+services:
+  app:
     image: ghcr.io/linkwarden/linkwarden:latest
-    container_name: Linkwarden-server
-    hostname: linkwarden
+    container_name: Linkwarden-app
+    hostname: ${BASE_HOST_NAME:-$HOSTNAME}
     restart: always
     pull_policy: always
+    logging: *default-logging
     environment:
-      - DATABASE_URL=postgres://linkwardenuser:linkwardenpass@linkwarden-db:5432/linkwarden
-      - NEXTAUTH_SECRET=${APP_JWT_TOKEN:-1dfa340bbed0542e3cc6aa436b43b57b52fcff1027ee0a2df6a2631dfa93b558}
-      - NEXTAUTH_URL=http://localhost:3000/api/v1/auth
+      - TZ=${TZ:-America/New_York}
       - NEXT_PUBLIC_DISABLE_REGISTRATION=false
+      - NEXTAUTH_URL=https://${BASE_HOST_NAME:-$HOSTNAME}/api/v1/auth
+      - NEXTAUTH_SECRET=${APP_JWT_TOKEN:-1dfa340bbed0542e3cc6aa436b43b57b52fcff1027ee0a2df6a2631dfa93b558}
+      - DATABASE_URL=postgres://linkwardendb:rghbX1j6zC8ZgrDhOJxlN59Cve9UChfs@linkwarden-db:5432/linkwarden
     ports:
       - 172.17.0.1:59051:3000
     volumes:
@@ -45,6 +34,28 @@ services:
       timeout: 5s
       retries: 3
       start_period: 90s
+    networks:
+      - linkwarden
+
+  db:
+    image: postgres:17
+    container_name: linkwarden-db
+    hostname: linkwarden-db
+    restart: always
+    pull_policy: always
+    logging: *default-logging
+    environment:
+      - TZ=${TZ:-America/New_York}
+      - POSTGRES_DB=linkwarden
+      - POSTGRES_USER=linkwardendb
+      - POSTGRES_PASSWORD=rghbX1j6zC8ZgrDhOJxlN59Cve9UChfs
+    volumes:
+      - /var/lib/srv/$USER/docker/db/postgres/linkwarden:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}']
+      timeout: 45s
+      interval: 10s
+      retries: 10
     networks:
       - linkwarden
 
