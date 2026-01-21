@@ -1,0 +1,65 @@
+# nginx proxy address - http://172.17.0.1:59051
+
+name: linkwarden
+x-logging: &default-logging
+  options:
+    max-size: '5m'
+    max-file: '1'
+  driver: json-file
+
+services:
+  app:
+    image: ghcr.io/linkwarden/linkwarden:latest
+    container_name: linkwarden-app
+    hostname: ${BASE_HOST_NAME:-$HOSTNAME}
+    restart: always
+    pull_policy: always
+    logging: *default-logging
+    environment:
+      TZ: ${TZ:-America/New_York}
+      NEXT_PUBLIC_DISABLE_REGISTRATION: false
+      NEXTAUTH_URL: https://${BASE_HOST_NAME:-$HOSTNAME}/api/v1/auth
+      NEXTAUTH_SECRET: ${APP_JWT_TOKEN:-changeme_jwt_secret}
+      DATABASE_URL: postgres://${DB_USER_NAME:-linkwardendb}:${DB_USER_PASS:-changeme_db_password}@linkwarden-db:5432/${DB_CREATE_DATABASE_NAME:-linkwarden}
+    ports:
+      - 172.17.0.1:59051:3000
+    volumes:
+      - './rootfs/data/linkwarden:/data/data'
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: timeout 10s bash -c ':> /dev/tcp/127.0.0.1/3000' || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+    networks:
+      - linkwarden
+
+  db:
+    image: postgres:17
+    container_name: linkwarden-db
+    hostname: linkwarden-db
+    restart: always
+    pull_policy: always
+    logging: *default-logging
+    environment:
+      TZ: ${TZ:-America/New_York}
+      POSTGRES_DB: ${DB_CREATE_DATABASE_NAME:-linkwarden}
+      POSTGRES_USER: ${DB_USER_NAME:-linkwardendb}
+      POSTGRES_PASSWORD: ${DB_USER_PASS:-changeme_db_password}
+    volumes:
+      - './rootfs/db/postgres/linkwarden:/var/lib/postgresql/data'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}']
+      timeout: 45s
+      interval: 10s
+      retries: 10
+    networks:
+      - linkwarden
+
+networks:
+  linkwarden:
+    name: linkwarden
+    external: false
