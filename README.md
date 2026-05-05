@@ -52,8 +52,8 @@ See `docker-compose.yaml` for complete list of configurable options.
 
 ## 📂 Volumes
 
-- `./rootfs/data/linkwarden` - Data storage
-- `./rootfs/data/db/postgres/linkwarden` - Data storage
+- `./volumes/data/linkwarden` - Data storage
+- `./volumes/data/db/postgres/linkwarden` - Data storage
 
 ## 🔐 Security
 
