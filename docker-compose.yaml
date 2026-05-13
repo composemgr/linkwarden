@@ -17,6 +17,8 @@ services:
     logging: *default-logging
     environment:
       TZ: ${TZ:-America/New_York}
+      CONTAINER_NAME: linkwarden-app
+      HOSTNAME: ${BASE_HOST_NAME:-$HOSTNAME}
       NEXT_PUBLIC_DISABLE_REGISTRATION: false
       NEXTAUTH_URL: https://${BASE_HOST_NAME:-$HOSTNAME}/api/v1/auth
       NEXTAUTH_SECRET: ${APP_JWT_TOKEN:-changeme_jwt_secret}
@@ -36,6 +38,24 @@ services:
       start_period: 90s
     networks:
       - linkwarden
+      - proxy
+      - cloudflare
+    labels:
+      - 'traefik.enable=true'
+      - 'cloudflare.enable=true'
+      - 'traefik.docker.network=proxy'
+      - 'cloudflare.service=http://linkwarden-app:3000'
+      - 'cloudflare.hostname=linkwarden.${CLOUDFLARE_ZONE_NAME:-}'
+      - 'traefik.http.routers.linkwarden-app.entrypoints=http'
+      - 'traefik.http.routers.linkwarden-app-secure.tls=true'
+      - 'traefik.http.routers.linkwarden-app.rule=Host($(${BASE_HOST_NAME:-$HOSTNAME}))'
+      - 'traefik.http.middlewares.linkwarden-app-https-redirect.redirectscheme.scheme=https'
+      - 'traefik.http.routers.linkwarden-app.middlewares=linkwarden-app-https-redirect'
+      - 'traefik.http.routers.linkwarden-app-secure.entrypoints=https'
+      - 'traefik.http.routers.linkwarden-app-secure.rule=Host($(${BASE_HOST_NAME:-$HOSTNAME}))'
+      - 'traefik.http.routers.linkwarden-app-secure.tls.certresolver=cloudflare'
+      - 'traefik.http.routers.linkwarden-app-secure.service=linkwarden-app'
+      - 'traefik.http.services.linkwarden-app.loadbalancer.server.port=3000'
 
   db:
     image: postgres:17
@@ -46,6 +66,7 @@ services:
     logging: *default-logging
     environment:
       TZ: ${TZ:-America/New_York}
+      CONTAINER_NAME: linkwarden-db
       POSTGRES_DB: ${DB_CREATE_DATABASE_NAME:-linkwarden}
       POSTGRES_USER: ${DB_USER_NAME:-linkwardendb}
       POSTGRES_PASSWORD: ${DB_USER_PASS:-changeme_db_password}
@@ -63,3 +84,7 @@ networks:
   linkwarden:
     name: linkwarden
     external: false
+  proxy:
+    external: true
+  cloudflare:
+    external: true
