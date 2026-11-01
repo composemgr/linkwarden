@@ -1,4 +1,4 @@
-# nginx proxy address - http://172.17.0.1:59051
+# nginx proxy address - http://172.17.0.1:64237
 
 name: linkwarden
 x-logging: &default-logging
@@ -11,6 +11,7 @@ services:
   app:
     image: ghcr.io/linkwarden/linkwarden:latest
     container_name: linkwarden-app
+    domainname: ${BASE_DOMAIN_NAME:-example.com}
     hostname: ${BASE_HOST_NAME:-$HOSTNAME}
     restart: always
     pull_policy: always
@@ -21,45 +22,28 @@ services:
       HOSTNAME: ${BASE_HOST_NAME:-$HOSTNAME}
       NEXT_PUBLIC_DISABLE_REGISTRATION: false
       NEXTAUTH_URL: https://${BASE_HOST_NAME:-$HOSTNAME}/api/v1/auth
-      NEXTAUTH_SECRET: ${APP_JWT_TOKEN:-changeme_jwt_secret}
-      DATABASE_URL: postgres://${DB_USER_NAME:-linkwardendb}:${DB_USER_PASS:-changeme_db_password}@linkwarden-db:5432/${DB_CREATE_DATABASE_NAME:-linkwarden}
+      NEXTAUTH_SECRET: ${APP_SECRET_KEY:-replace-with-a-random-secret-key}
+      DATABASE_URL: postgres://${DB_USER_NAME:-linkwardendb}:${DB_USER_PASS:-replace-with-a-random-password}@linkwarden-db:5432/${DB_CREATE_DATABASE_NAME:-linkwarden}
     ports:
-      - 172.17.0.1:59051:3000
+      - '172.17.0.1:64237:3000'
     volumes:
       - './volumes/data/linkwarden:/data/data'
-    depends_on:
-      db:
-        condition: service_healthy
     healthcheck:
       test: timeout 10s bash -c ':> /dev/tcp/127.0.0.1/3000' || exit 1
       interval: 10s
       timeout: 5s
       retries: 3
       start_period: 90s
+    depends_on:
+      db:
+        condition: service_healthy
     networks:
       - linkwarden
-      - proxy
-      - cloudflare
-    labels:
-      - 'traefik.enable=true'
-      - 'cloudflare.enable=true'
-      - 'traefik.docker.network=proxy'
-      - 'cloudflare.service=http://linkwarden-app:3000'
-      - 'cloudflare.hostname=linkwarden.${CLOUDFLARE_ZONE_NAME:-}'
-      - 'traefik.http.routers.linkwarden-app.entrypoints=http'
-      - 'traefik.http.routers.linkwarden-app-secure.tls=true'
-      - 'traefik.http.routers.linkwarden-app.rule=Host($(${BASE_HOST_NAME:-$HOSTNAME}))'
-      - 'traefik.http.middlewares.linkwarden-app-https-redirect.redirectscheme.scheme=https'
-      - 'traefik.http.routers.linkwarden-app.middlewares=linkwarden-app-https-redirect'
-      - 'traefik.http.routers.linkwarden-app-secure.entrypoints=https'
-      - 'traefik.http.routers.linkwarden-app-secure.rule=Host($(${BASE_HOST_NAME:-$HOSTNAME}))'
-      - 'traefik.http.routers.linkwarden-app-secure.tls.certresolver=cloudflare'
-      - 'traefik.http.routers.linkwarden-app-secure.service=linkwarden-app'
-      - 'traefik.http.services.linkwarden-app.loadbalancer.server.port=3000'
 
   db:
     image: postgres:17
     container_name: linkwarden-db
+    domainname: ${BASE_DOMAIN_NAME:-example.com}
     hostname: linkwarden-db
     restart: always
     pull_policy: always
@@ -69,9 +53,9 @@ services:
       CONTAINER_NAME: linkwarden-db
       POSTGRES_DB: ${DB_CREATE_DATABASE_NAME:-linkwarden}
       POSTGRES_USER: ${DB_USER_NAME:-linkwardendb}
-      POSTGRES_PASSWORD: ${DB_USER_PASS:-changeme_db_password}
+      POSTGRES_PASSWORD: ${DB_USER_PASS:-replace-with-a-random-password}
     volumes:
-      - './volumes/data/db/postgres/linkwarden:/var/lib/postgresql/data'
+      - './volumes/db/postgres/linkwarden:/var/lib/postgresql/data:z'
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}']
       timeout: 45s
@@ -84,7 +68,3 @@ networks:
   linkwarden:
     name: linkwarden
     external: false
-  proxy:
-    external: true
-  cloudflare:
-    external: true
